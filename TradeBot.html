@@ -1,0 +1,340 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>TradeBot - Import/Export Assistant</title>
+    <style>
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(135deg, #f5f7fa 0%, #c3cfe2 100%);
+            margin: 0;
+            padding: 10px;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            min-height: 100vh;
+        }
+
+        .chat-container {
+            width: 100%;
+            max-width: 600px;
+            background: white;
+            border-radius: 15px;
+            box-shadow: 0 5px 15px rgba(0,0,0,0.1);
+            overflow: hidden;
+            display: flex;
+            flex-direction: column;
+            height: 80vh;
+        }
+
+        .chat-header {
+            background: #2c3e50;
+            color: white;
+            padding: 15px;
+            text-align: center;
+            font-size: 1.2em;
+        }
+
+        .chat-messages {
+            flex: 1;
+            padding: 15px;
+            overflow-y: auto;
+        }
+
+        .message {
+            margin: 10px 0;
+            padding: 10px 15px;
+            border-radius: 10px;
+            max-width: 85%;
+            word-wrap: break-word;
+        }
+
+        .user-message {
+            background: #3498db;
+            color: white;
+            margin-left: auto;
+        }
+
+        .bot-message {
+            background: #ecf0f1;
+            color: #2c3e50;
+        }
+
+        .bot-message h3 {
+            margin: 15px 0 5px;
+            color: #2c3e50;
+            font-weight: bold;
+        }
+
+        .bot-message h4 {
+            margin: 10px 0 5px;
+            color: #2c3e50;
+            font-weight: bold;
+        }
+
+        .bot-message ul {
+            margin: 5px 0 5px 20px;
+            padding-left: 0;
+        }
+
+        .bot-message li {
+            margin: 5px 0;
+        }
+
+        .bot-message strong {
+            font-weight: bold;
+        }
+
+        .chat-input {
+            padding: 15px;
+            border-top: 1px solid #eee;
+            display: flex;
+            gap: 10px;
+            flex-wrap: wrap;
+        }
+
+        input[type="text"] {
+            flex: 1;
+            padding: 10px;
+            border: 1px solid #ddd;
+            border-radius: 5px;
+            font-size: 1em;
+            outline: none;
+            min-width: 0;
+        }
+
+        button {
+            padding: 10px 20px;
+            background: #2c3e50;
+            color: white;
+            border: none;
+            border-radius: 5px;
+            cursor: pointer;
+            transition: background 0.3s;
+        }
+
+        button:hover {
+            background: #34495e;
+        }
+
+        @media (max-width: 480px) {
+            .chat-container {
+                height: 90vh;
+                margin: 0 5px;
+                border-radius: 10px;
+            }
+
+            .chat-header {
+                font-size: 1em;
+                padding: 10px;
+            }
+
+            .chat-messages {
+                padding: 10px;
+            }
+
+            .message {
+                max-width: 90%;
+                font-size: 0.9em;
+            }
+
+            .chat-input {
+                padding: 10px;
+                flex-direction: column;
+            }
+
+            input[type="text"] {
+                width: 100%;
+                font-size: 0.9em;
+            }
+
+            button {
+                width: 100%;
+                padding: 10px;
+                font-size: 0.9em;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="chat-container">
+        <div class="chat-header">TradeBot - Your Import/Export Assistant</div>
+        <div class="chat-messages" id="messages"></div>
+        <div class="chat-input">
+            <input type="text" id="userInput" placeholder="Ask about import/export...">
+            <button onclick="sendMessage()">Send</button>
+        </div>
+    </div>
+
+    <script>
+        // State variable
+        let conversation = [];
+        let messageId = 1;
+
+        // Function to add a message to the conversation
+        function addMessage(message) {
+            conversation.push(message);
+            displayMessage(message);
+        }
+
+        // Function to format bot response into structured HTML
+        function formatBotResponse(text) {
+            const lines = text.split('\n').filter(line => line.trim() !== '');
+            const container = document.createElement('div');
+            
+            lines.forEach(line => {
+                line = line.trim();
+
+                // Handle numbered headings (# N. Text or # N. **Text**)
+                if (line.match(/^#\s*\d+\.\s*/)) {
+                    const heading = document.createElement('h3');
+                    let content = line.replace(/^#\s*\d+\.\s*/, '').trim();
+                    if (content.startsWith('**') && content.endsWith('**')) {
+                        content = content.replace(/\*\*/g, '').trim();
+                        heading.innerHTML = `<strong>${line.match(/^#\s*\d+\./)[0]} ${content}</strong>`;
+                    } else {
+                        heading.textContent = `${line.match(/^#\s*\d+\./)[0]} ${content}`;
+                    }
+                    container.appendChild(heading);
+                }
+                // Handle secondary headings (## Text)
+                else if (line.match(/^##\s*/)) {
+                    const subheading = document.createElement('h4');
+                    let content = line.replace(/^##\s*/, '').trim();
+                    subheading.textContent = content;
+                    container.appendChild(subheading);
+                }
+                // Handle subheadings (**Text**:)
+                else if (line.match(/^\*\*.*\*\*:/)) {
+                    const subheading = document.createElement('h4');
+                    let content = line.replace(/^\*\*/, '').replace(/\*\*:/, '').trim();
+                    subheading.textContent = content;
+                    container.appendChild(subheading);
+                }
+                // Handle list items (- Text)
+                else if (line.startsWith('-')) {
+                    let ul = container.lastElementChild;
+                    if (!ul || ul.tagName !== 'UL') {
+                        ul = document.createElement('ul');
+                        container.appendChild(ul);
+                    }
+                    const li = document.createElement('li');
+                    let content = line.replace(/^-/, '').trim();
+                    if (content.includes('**')) {
+                        const parts = content.split('**');
+                        for (let i = 0; i < parts.length; i++) {
+                            if (i % 2 === 1) {
+                                const strong = document.createElement('strong');
+                                strong.textContent = parts[i];
+                                li.appendChild(strong);
+                            } else {
+                                li.appendChild(document.createTextNode(parts[i]));
+                            }
+                        }
+                    } else {
+                        li.textContent = content;
+                    }
+                    ul.appendChild(li);
+                }
+                // Handle regular paragraphs
+                else {
+                    const p = document.createElement('p');
+                    let content = line.trim();
+                    if (content.includes('**')) {
+                        const parts = content.split('**');
+                        for (let i = 0; i < parts.length; i++) {
+                            if (i % 2 === 1) {
+                                const strong = document.createElement('strong');
+                                strong.textContent = parts[i];
+                                p.appendChild(strong);
+                            } else {
+                                p.appendChild(document.createTextNode(parts[i]));
+                            }
+                        }
+                    } else {
+                        p.textContent = content;
+                    }
+                    container.appendChild(p);
+                }
+            });
+
+            return container;
+        }
+
+        // Function to display messages in the UI
+        function displayMessage(message) {
+            const messagesDiv = document.getElementById('messages');
+            const messageDiv = document.createElement('div');
+            messageDiv.classList.add('message');
+            messageDiv.classList.add(message.sendby === 'user' ? 'user-message' : 'bot-message');
+
+            if (message.sendby === 'bot') {
+                const formattedContent = formatBotResponse(message.text);
+                messageDiv.appendChild(formattedContent);
+            } else {
+                messageDiv.textContent = message.text;
+            }
+
+            messagesDiv.appendChild(messageDiv);
+            messagesDiv.scrollTop = messagesDiv.scrollHeight;
+        }
+
+        // Function to handle user message sending
+        function sendMessage() {
+            const userInput = document.getElementById('userInput');
+            const text = userInput.value.trim();
+            if (!text) return;
+
+            const message = {
+                id: messageId++,
+                text: text,
+                sendby: 'user'
+            };
+
+            addMessage(message);
+            userInput.value = '';
+            replyByBot(message);
+        }
+
+        // Bot response function
+        async function replyByBot(userMessage) {
+            const prompt = `You are a trade expert with 20 years of experience specializing in Indian import/export regulations and global trade practices. The user is asking: "${userMessage.text}". If the query is related to import/export, trade regulations, or global commerce, provide a clear, practical, and accurate response with proper insight into all relevant rules & regulations, possible challenges. Use # N. **Text** for numbered headings with bolded text (e.g., # 1. **Heading**), ## Text for secondary headings (no bold), **Text**: for subheadings under list items (no bold), and - for list items. Use **bold** for emphasis within text where appropriate, but avoid overusing it in headings beyond # N. **Text**. Ensure clean formatting. If the query is not related to import/export or trade (e.g., weather, personal opinions, unrelated topics), deflect politely and prompt to ask any trade trelated queries`;
+
+            try {
+                const encodedPrompt = encodeURIComponent(prompt);
+                const apiUrl = `https://text.pollinations.ai/${encodedPrompt}`;
+                const response = await fetch(apiUrl);
+
+                if (!response.ok) {
+                    throw new Error(`HTTP error! Status: ${response.status}`);
+                }
+
+                const reply = await response.text();
+                const botMessage = {
+                    id: messageId++,
+                    text: reply,
+                    sendby: 'bot'
+                };
+
+                addMessage(botMessage);
+            } catch (error) {
+                console.error('Error fetching bot response:', error);
+                const errorMessage = {
+                    id: messageId++,
+                    text: 'Sorry, I encountered an error. Please try again.',
+                    sendby: 'bot'
+                };
+                addMessage(errorMessage);
+            }
+        }
+
+        // Enable sending message with Enter key
+        document.getElementById('userInput').addEventListener('keypress', function(e) {
+            if (e.key === 'Enter') {
+                sendMessage();
+            }
+        });
+    </script>
+</body>
+</html>
